@@ -40,12 +40,13 @@ async function loadCommands() {
 
       for (const file of commandFiles) {
         const filePath = join(folderPath, file);
-        const commandUrl = new URL(`file://${filePath}`);
-        
+        // Fix for Windows paths - convert to proper file URL
+        const fileUrl = `file:///${filePath.replace(/\\/g, '/')}`;
+
         try {
-          const commandModule = await import(commandUrl.href);
+          const commandModule = await import(fileUrl);
           const command = commandModule.default;
-          
+
           if ("data" in command && "execute" in command) {
             client.commands.set(command.data.name, command);
             console.log(`✅ Loaded command: ${command.data.name}`);
@@ -63,37 +64,28 @@ async function loadCommands() {
   }
 }
 
-client.once(Events.ClientReady, () => {
-  console.log(`🤖 Ready! Logged in as ${client.user.tag}`);
-});
+const eventsPath = join(__dirname, "events");
+const eventFiles = readdirSync(eventsPath)
+  .filter(file => file.endsWith(".js"));
 
-client.on(Events.InteractionCreate, async interaction => {
-  if (!interaction.isChatInputCommand()) return;
-
-  const command = client.commands.get(interaction.commandName);
-
-  if (!command) {
-    console.error(`⚠️ No command matching ${interaction.commandName} was found`);
-    return;
-  }
-
+for (const file of eventFiles) {
+  const filePath = join(eventsPath, file);
+  const fileUrl = `file:///${filePath.replace(/\\/g, '/')}`;
+  
   try {
-    await command.execute(interaction);
-  } catch (error) {
-    console.error(`❌ Error executing ${interaction.commandName}:`, error);
-    
-    const errorResponse = {
-      content: "There was an error while executing this command!",
-      ephemeral: true
-    };
+    const eventModule = await import(fileUrl);
+    const event = eventModule.default;
 
-    if (interaction.replied || interaction.deferred) {
-      await interaction.followUp(errorResponse);
+    if (event.once) {
+      client.once(event.name, (...args) => event.execute(...args));
     } else {
-      await interaction.reply(errorResponse);
+      client.on(event.name, (...args) => event.execute(...args));
     }
+    console.log(`✅ Loaded event: ${event.name}`);
+  } catch (error) {
+    console.error(`❌ Failed to load event ${filePath}:`, error);
   }
-});
+}
 
 // Start the bot
 loadCommands()

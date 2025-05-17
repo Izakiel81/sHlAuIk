@@ -1,18 +1,37 @@
 import { SlashCommandBuilder } from "discord.js";
+import { joinVoiceChannel } from '@discordjs/voice';
 
 export default {
     data: new SlashCommandBuilder()
         .setName("join")
         .setDescription("Join a voice channel"),
     async execute(interaction) {
-        const { member } = interaction;
+
+        await interaction.deferReply();
+
+        const { member, guild } = interaction;
         const voiceChannel = member.voice.channel;
 
         if (!voiceChannel) {
-            return interaction.reply("ГдЄ тИ шЮкА?");
+            return interaction.editReply("ГдЄ тИ шЮкА?");
         }
 
-        await interaction.reply(`Я хАчЮ кЮшАтЬ`);
-        await member.voice.setChannel(voiceChannel);
+        if (!voiceChannel.joinable) {
+            return interaction.editReply("Я нЄ мАгЮ");
+        }
+
+        try {
+            const connection = joinVoiceChannel({
+                channelId: voiceChannel.id,
+                guildId: guild.id,
+                adapterCreator: guild.voiceAdapterCreator,
+            })
+            await interaction.editReply(`Я хАчЮ кЮшАтЬ`);
+
+            return connection;
+        } catch (error) {
+            console.error('Join command error:', error);
+            await interaction.editReply('❌ Failed to join voice channel!');
+        }
     }
 }
