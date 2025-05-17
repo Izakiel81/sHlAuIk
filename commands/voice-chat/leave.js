@@ -1,18 +1,35 @@
 import {SlashCommandBuilder} from 'discord.js';
+import { getVoiceConnection } from '@discordjs/voice';
 
 export default {
     data: new SlashCommandBuilder()
         .setName('leave')
         .setDescription('Leave a voice channel'),
     async execute(interaction) {
+
+        await interaction.deferReply();
+
         const {member} = interaction;
         const voiceChannel = member.voice.channel;
 
         if (!voiceChannel) {
-            return interaction.reply('ГдЄ тИ шЮкА?');
+            return interaction.editReply('ГдЄ тИ шЮкА?');
         }
 
-        await interaction.reply(`ШаШиТє ${voiceChannel.name}...`);
+        const connection = getVoiceConnection(interaction.guild.id);
+
+        if (!connection) {
+            return interaction.editReply('Я нЄ вГоЛоСнИй');
+        }
+        try {
+            connection.destroy();
+            await interaction.editReply(`ШаШиТє ЛоХи!`);
+
+        } catch (error) {
+            console.log('Leave command error:', error);
+            await interaction.editReply('АтПуСтИ!"');
+        }
+
         await member.voice.disconnect();
     }
 };
