@@ -2,17 +2,19 @@ import {
   Client,
   Events,
   GatewayIntentBits,
-  Collection,
-  MessageFlags,
+  Collection
 } from "discord.js";
 import dotenv from "dotenv";
-import fs from "node:fs";
-import path from "node:path";
+import { readdirSync } from "fs";
+import { dirname, join } from "path";
+import { fileURLToPath } from "url";
 
-dotenv.config();
-
+// ES Modules path resolution
 const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+const __dirname = dirname(__filename);
+
+// Load environment variables
+dotenv.config();
 
 const client = new Client({
   intents: [
@@ -26,58 +28,77 @@ const client = new Client({
 
 client.commands = new Collection();
 
-const folderPath = path.join(__dirname, "commands");
-const commandFiles = fs.readdirSync(folderPath);
+async function loadCommands() {
+  try {
+    const commandsPath = join(__dirname, "commands");
+    const commandFolders = readdirSync(commandsPath);
 
-for (const folder of commandFiles) {
-  const commandsPath = path.join(folderPath, folder);
-  const commandFiles = fs
-    .readdirSync(commandsPath)
-    .filter((file) => file.endsWith(".js"));
+    for (const folder of commandFolders) {
+      const folderPath = join(commandsPath, folder);
+      const commandFiles = readdirSync(folderPath)
+        .filter(file => file.endsWith(".js"));
 
-  for (const file of commandFiles) {
-    const filePath = path.join(commandsPath, file);
-    const command = require(filePath);
-    if ("data" in command && "execute" in command) {
-      client.commands.set(command.data.name, command);
-    } else {
-      console.log(
-        `[WARNING] The command at ${filePath} is missing a required "data" or "execute" property.`
-      );
+      for (const file of commandFiles) {
+        const filePath = join(folderPath, file);
+        const commandUrl = new URL(`file://${filePath}`);
+        
+        try {
+          const commandModule = await import(commandUrl.href);
+          const command = commandModule.default;
+          
+          if ("data" in command && "execute" in command) {
+            client.commands.set(command.data.name, command);
+            console.log(`✅ Loaded command: ${command.data.name}`);
+          } else {
+            console.warn(`⚠️ Command at ${filePath} is missing required properties`);
+          }
+        } catch (error) {
+          console.error(`❌ Failed to load command ${filePath}:`, error);
+        }
+      }
     }
+  } catch (error) {
+    console.error("❌ Failed to load commands:", error);
+    throw error;
   }
 }
+
 client.once(Events.ClientReady, () => {
-  console.log("Ready!, Logged in as " + client.user.tag);
+  console.log(`🤖 Ready! Logged in as ${client.user.tag}`);
 });
 
-client.on(Events.InteractionCreate, async (interaction) => {
+client.on(Events.InteractionCreate, async interaction => {
   if (!interaction.isChatInputCommand()) return;
 
-  const command = interaction.client.commands.get(interaction.commandName);
+  const command = client.commands.get(interaction.commandName);
 
   if (!command) {
-    console.error(`No command matching ${interaction.commandName} was found.`);
+    console.error(`⚠️ No command matching ${interaction.commandName} was found`);
     return;
   }
+
   try {
     await command.execute(interaction);
   } catch (error) {
-    console.error(`Error executing ${interaction.commandName}:`, error);
+    console.error(`❌ Error executing ${interaction.commandName}:`, error);
+    
+    const errorResponse = {
+      content: "There was an error while executing this command!",
+      ephemeral: true
+    };
+
     if (interaction.replied || interaction.deferred) {
-      await interaction.followUp({
-        content: "There was an error while executing this command!",
-        ephemeral: true,
-        flags: MessageFlags.Ephemeral,
-      });
+      await interaction.followUp(errorResponse);
     } else {
-      await interaction.reply({
-        content: "There was an error while executing this command!",
-        ephemeral: true,
-        flags: MessageFlags.Ephemeral,
-      });
+      await interaction.reply(errorResponse);
     }
   }
 });
 
-client.login(process.env.DISCORD_BOT_TOKEN);
+// Start the bot
+loadCommands()
+  .then(() => client.login(process.env.DISCORD_BOT_TOKEN))
+  .catch(error => {
+    console.error("❌ Failed to start bot:", error);
+    process.exit(1);
+  });

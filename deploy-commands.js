@@ -1,8 +1,9 @@
 import { REST, Routes } from 'discord.js';
 import dotenv from 'dotenv';
-import fs from 'node:fs';
-import path from 'node:path';
-import { fileURLToPath } from 'node:url';
+import fs from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
+import { pathToFileURL } from 'url';
 
 // ES Modules path resolution
 const __filename = fileURLToPath(import.meta.url);
@@ -12,7 +13,7 @@ const __dirname = path.dirname(__filename);
 dotenv.config();
 
 // Validate required environment variables
-const requiredEnvVars = ['DISCORD_TOKEN', 'DISCORD_CLIENT_ID', 'DISCORD_GUILD_ID'];
+const requiredEnvVars = ['DISCORD_BOT_TOKEN', 'DISCORD_CLIENT_ID', 'DISCORD_GUILD_ID'];
 for (const envVar of requiredEnvVars) {
     if (!process.env[envVar]) {
         throw new Error(`Missing required environment variable: ${envVar}`);
@@ -32,25 +33,27 @@ async function loadCommands() {
             
             for (const file of commandFiles) {
                 const filePath = path.join(commandsPath, file);
+                const fileUrl = pathToFileURL(filePath).href; // Convert to file:// URL
                 
                 try {
-                    // Dynamic import for ES modules
-                    const command = await import(filePath);
+                    // Dynamic import with proper URL format
+                    const command = await import(fileUrl);
                     
-                    if ('data' in command && 'execute' in command) {
-                        commands.push(command.data.toJSON());
+                    if ('data' in command.default && 'execute' in command.default) {
+                        commands.push(command.default.data.toJSON());
+                        console.log(`✅ Loaded command: ${command.default.data.name}`);
                     } else {
-                        console.warn(`[WARNING] The command at ${filePath} is missing required properties.`);
+                        console.warn(`⚠️ The command at ${filePath} is missing required properties.`);
                     }
                 } catch (error) {
-                    console.error(`Error loading command ${filePath}:`, error);
+                    console.error(`❌ Error loading command ${filePath}:`, error);
                 }
             }
         }
         
         return commands;
     } catch (error) {
-        console.error('Error reading commands directory:', error);
+        console.error('❌ Error reading commands directory:', error);
         throw error;
     }
 }
@@ -58,18 +61,18 @@ async function loadCommands() {
 async function deployCommands() {
     try {
         const commands = await loadCommands();
-        const rest = new REST({ version: '10' }).setToken(process.env.DISCORD_TOKEN);
+        const rest = new REST({ version: '10' }).setToken(process.env.DISCORD_BOT_TOKEN);
         
-        console.log(`Starting deployment of ${commands.length} application (/) commands.`);
+        console.log(`🔄 Starting deployment of ${commands.length} application (/) commands...`);
         
         const data = await rest.put(
             Routes.applicationGuildCommands(process.env.DISCORD_CLIENT_ID, process.env.DISCORD_GUILD_ID),
             { body: commands }
         );
         
-        console.log(`Successfully deployed ${data.length} commands.`);
+        console.log(`✅ Successfully deployed ${data.length} commands!`);
     } catch (error) {
-        console.error('Command deployment failed:', error);
+        console.error('❌ Command deployment failed:', error);
         process.exit(1);
     }
 }
