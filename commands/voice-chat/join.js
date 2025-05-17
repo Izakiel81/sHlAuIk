@@ -4,7 +4,7 @@ import { joinVoiceChannel } from '@discordjs/voice';
 export default {
     data: new SlashCommandBuilder()
         .setName("join")
-        .setDescription("Join a voice channel"),
+        .setDescription("Покилкати гондона в голосовий"),
     async execute(interaction) {
 
         await interaction.deferReply();

@@ -4,7 +4,7 @@ import { getVoiceConnection } from '@discordjs/voice';
 export default {
     data: new SlashCommandBuilder()
         .setName('leave')
-        .setDescription('Leave a voice channel'),
+        .setDescription('Вигнади цю твариниу з голосового каналу!'),
     async execute(interaction) {
 
         await interaction.deferReply();
@@ -27,7 +27,7 @@ export default {
 
         } catch (error) {
             console.log('Leave command error:', error);
-            await interaction.editReply('АтПуСтИ!"');
+            await interaction.editReply('АтПуСтИ!');
         }
 
         await member.voice.disconnect();
