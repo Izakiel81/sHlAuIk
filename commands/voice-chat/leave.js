@@ -29,7 +29,5 @@ export default {
             console.log('Leave command error:', error);
             await interaction.editReply('АтПуСтИ!');
         }
-
-        await member.voice.disconnect();
     }
 };
